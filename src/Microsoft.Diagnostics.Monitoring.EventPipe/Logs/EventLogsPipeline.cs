@@ -132,45 +132,51 @@ namespace Microsoft.Diagnostics.Monitoring.EventPipe
                     JsonElement message = JsonSerializer.Deserialize<JsonElement>(argsJson);
 
                     const string OriginalFormatProperty = "{OriginalFormat}";
+                    bool parsedState = false;
                     if (message.TryGetProperty(OriginalFormatProperty, out JsonElement formatElement))
                     {
                         string formatString = formatElement.GetString();
                         LogValuesFormatter formatter = new(formatString);
                         object[] args = new object[formatter.ValueNames.Count];
 
-                        // NOTE:Placeholders in log messages are ordinal based, names are not used to align the arguments to placeholders.
+                        // NOTE: Placeholders in log messages are ordinal based, names are not used to align the arguments to placeholders.
                         // This means a placeholder name can be used multiple times in a single message.
                         using JsonElement.ObjectEnumerator enumerator = message.EnumerateObject();
                         // NOTE: In general there'll be N+1 property in the arguments payload, where the last entry is the original format string.
                         //
                         // It's possible that a log message with placeholders will supply a null array for the arguments.
                         // In which case there will only be the original format string in the arguments payload.
-                        if (enumerator.MoveNext() &&
-                            !string.Equals(OriginalFormatProperty, enumerator.Current.Name, StringComparison.Ordinal))
+                        if (enumerator.MoveNext())
                         {
                             JsonProperty currentElement = enumerator.Current;
-                            for (int i = 0; i < formatter.ValueNames.Count; i++)
+                            parsedState = false;
+                            if (!string.Equals(OriginalFormatProperty, enumerator.Current.Name, StringComparison.Ordinal))
                             {
-                                if (enumerator.MoveNext())
+                                for (int i = 0; i < formatter.ValueNames.Count; i++)
                                 {
                                     args[i] = currentElement.Value.GetString();
+
+                                    if (!enumerator.MoveNext())
+                                    {
+                                        parsedState = false;
+                                        break;
+                                    }
                                     currentElement = enumerator.Current;
                                 }
-                                else
-                                {
-                                    // Unexpected
-                                    break;
-                                }
+                            }
+
+                            if (parsedState)
+                            {
+                                //We want to propagate the timestamp to the underlying logger, but that's not part of the ILogger interface.
+                                //We replicate LoggerExtensions.Log, but add an interface capability to the object
+                                //CONSIDER FormattedLogValues maintains a cache of formatters. We are effectively duplicating this cache.
+                                FormattedLogValues logValues = new(traceEvent.TimeStamp, formatString, args);
+                                logger.Log(logLevel, new EventId(eventId, eventName), logValues, exception, _messageFormatter);
                             }
                         }
-
-                        //We want to propagate the timestamp to the underlying logger, but that's not part of the ILogger interface.
-                        //We replicate LoggerExtensions.Log, but add an interface capability to the object
-                        //CONSIDER FormattedLogValues maintains a cache of formatters. We are effectively duplicating this cache.
-                        FormattedLogValues logValues = new(traceEvent.TimeStamp, formatString, args);
-                        logger.Log(logLevel, new EventId(eventId, eventName), logValues, exception, _messageFormatter);
                     }
-                    else
+
+                    if (!parsedState)
                     {
                         LogObject obj = new(message, lastFormattedMessage) { Timestamp = traceEvent.TimeStamp };
                         logger.Log(logLevel, new EventId(eventId, eventName), obj, exception, LogObject.Callback);
