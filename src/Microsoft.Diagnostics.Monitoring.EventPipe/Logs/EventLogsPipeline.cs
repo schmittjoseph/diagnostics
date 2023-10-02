@@ -147,7 +147,7 @@ namespace Microsoft.Diagnostics.Monitoring.EventPipe
                             JsonProperty currentElement = enumerator.Current;
                             parsedState = true;
 
-                            // NOTE: In general there'll be N+1 property in the arguments payload, where the last entry is the original format string.
+                            // NOTE: In general there'll be N+1 properties in the arguments payload, where the last entry is the original format string.
                             //
                             // It's possible that a log message with placeholders will supply a null array for the arguments.
                             // In which case there will only be the original format string in the arguments payload.
