@@ -142,14 +142,15 @@ namespace Microsoft.Diagnostics.Monitoring.EventPipe
                         // NOTE: Placeholders in log messages are ordinal based, names are not used to align the arguments to placeholders.
                         // This means a placeholder name can be used multiple times in a single message.
                         using JsonElement.ObjectEnumerator enumerator = message.EnumerateObject();
-                        // NOTE: In general there'll be N+1 property in the arguments payload, where the last entry is the original format string.
-                        //
-                        // It's possible that a log message with placeholders will supply a null array for the arguments.
-                        // In which case there will only be the original format string in the arguments payload.
                         if (enumerator.MoveNext())
                         {
                             JsonProperty currentElement = enumerator.Current;
-                            parsedState = false;
+                            parsedState = true;
+
+                            // NOTE: In general there'll be N+1 property in the arguments payload, where the last entry is the original format string.
+                            //
+                            // It's possible that a log message with placeholders will supply a null array for the arguments.
+                            // In which case there will only be the original format string in the arguments payload.
                             if (!string.Equals(OriginalFormatProperty, enumerator.Current.Name, StringComparison.Ordinal))
                             {
                                 for (int i = 0; i < formatter.ValueNames.Count; i++)
