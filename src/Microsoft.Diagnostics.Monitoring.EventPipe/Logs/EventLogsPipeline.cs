@@ -150,7 +150,8 @@ namespace Microsoft.Diagnostics.Monitoring.EventPipe
                             // NOTE: In general there'll be N+1 properties in the arguments payload, where the last entry is the original format string.
                             //
                             // It's possible that a log message with placeholders will supply a null array for the arguments.
-                            // In which case there will only be the original format string in the arguments payload.
+                            // In which case there will only be the original format string in the arguments payload
+                            // and we can skip filling the args array as all values should be null.
                             if (!string.Equals(OriginalFormatProperty, enumerator.Current.Name, StringComparison.Ordinal))
                             {
                                 for (int i = 0; i < formatter.ValueNames.Count; i++)
