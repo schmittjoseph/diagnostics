@@ -130,16 +130,37 @@ namespace Microsoft.Diagnostics.Monitoring.EventPipe
                     }
 
                     JsonElement message = JsonSerializer.Deserialize<JsonElement>(argsJson);
-                    if (message.TryGetProperty("{OriginalFormat}", out JsonElement formatElement))
+
+                    const string OriginalFormatProperty = "{OriginalFormat}";
+                    if (message.TryGetProperty(OriginalFormatProperty, out JsonElement formatElement))
                     {
                         string formatString = formatElement.GetString();
                         LogValuesFormatter formatter = new(formatString);
                         object[] args = new object[formatter.ValueNames.Count];
-                        for (int i = 0; i < args.Length; i++)
+
+                        // NOTE:Placeholders in log messages are ordinal based, names are not used to align the arguments to placeholders.
+                        // This means a placeholder name can be used multiple times in a single message.
+                        using JsonElement.ObjectEnumerator enumerator = message.EnumerateObject();
+                        // NOTE: In general there'll be N+1 property in the arguments payload, where the last entry is the original format string.
+                        //
+                        // It's possible that a log message with placeholders will supply a null array for the arguments.
+                        // In which case there will only be the original format string in the arguments payload.
+                        if (enumerator.MoveNext() &&
+                            !string.Equals(OriginalFormatProperty, enumerator.Current.Name, StringComparison.Ordinal))
                         {
-                            if (message.TryGetProperty(formatter.ValueNames[i], out JsonElement value))
+                            JsonProperty currentElement = enumerator.Current;
+                            for (int i = 0; i < formatter.ValueNames.Count; i++)
                             {
-                                args[i] = value.GetString();
+                                if (enumerator.MoveNext())
+                                {
+                                    args[i] = currentElement.Value.GetString();
+                                    currentElement = enumerator.Current;
+                                }
+                                else
+                                {
+                                    // Unexpected
+                                    break;
+                                }
                             }
                         }
 
