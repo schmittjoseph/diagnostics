@@ -42,8 +42,7 @@ namespace Microsoft.Diagnostics.Monitoring.EventPipe
         {
             string lastFormattedMessage = string.Empty;
 
-            Dictionary<Guid, LogActivityItem> logActivities = new();
-            Stack<Guid> stack = new();
+            Dictionary<Guid, LogActivityItem> activityIdToScopeData = new();
 
             eventSource.Dynamic.AddCallbackForProviderEvent(LoggingSourceConfiguration.MicrosoftExtensionsLoggingProviderName, "ActivityJson/Start", (traceEvent) => {
                 int factoryId = (int)traceEvent.PayloadByName("FactoryID");
@@ -54,32 +53,18 @@ namespace Microsoft.Diagnostics.Monitoring.EventPipe
                 LogActivityItem item = new()
                 {
                     ActivityID = traceEvent.ActivityID,
+                    RelatedActivityID = traceEvent.RelatedActivityID,
                     ScopedObject = new LogObject(JsonDocument.Parse(argsJson).RootElement),
                 };
 
-                if (stack.Count > 0)
-                {
-                    Guid parentId = stack.Peek();
-                    if (logActivities.TryGetValue(parentId, out LogActivityItem parentItem))
-                    {
-                        item.Parent = parentItem;
-                    }
-                }
-
-                stack.Push(traceEvent.ActivityID);
-                logActivities[traceEvent.ActivityID] = item;
+                activityIdToScopeData[traceEvent.ActivityID] = item;
             });
 
             eventSource.Dynamic.AddCallbackForProviderEvent(LoggingSourceConfiguration.MicrosoftExtensionsLoggingProviderName, "ActivityJson/Stop", (traceEvent) => {
                 int factoryId = (int)traceEvent.PayloadByName("FactoryID");
                 string categoryName = (string)traceEvent.PayloadByName("LoggerName");
 
-                //If we begin collection in the middle of a request, we can receive a stop without having a start.
-                if (stack.Count > 0)
-                {
-                    stack.Pop();
-                    logActivities.Remove(traceEvent.ActivityID);
-                }
+                activityIdToScopeData[traceEvent.ActivityID] = null;
             });
 
             eventSource.Dynamic.AddCallbackForProviderEvent(LoggingSourceConfiguration.MicrosoftExtensionsLoggingProviderName, "MessageJson", (traceEvent) => {
@@ -110,15 +95,11 @@ namespace Microsoft.Diagnostics.Monitoring.EventPipe
                 ILogger logger = _factory.CreateLogger(categoryName);
                 List<IDisposable> scopes = new();
 
-                if (logActivities.TryGetValue(traceEvent.ActivityID, out LogActivityItem logActivityItem))
+                Guid scopeActivityId = traceEvent.ActivityID;
+                while (activityIdToScopeData.TryGetValue(scopeActivityId, out LogActivityItem logActivityItem))
                 {
-                    // REVIEW: Does order matter here? We're combining everything anyways.
-                    while (logActivityItem != null)
-                    {
-                        scopes.Add(logger.BeginScope(logActivityItem.ScopedObject));
-
-                        logActivityItem = logActivityItem.Parent;
-                    }
+                    scopes.Add(logger.BeginScope(logActivityItem.ScopedObject));
+                    scopeActivityId = logActivityItem.RelatedActivityID;
                 }
 
                 try
@@ -194,9 +175,9 @@ namespace Microsoft.Diagnostics.Monitoring.EventPipe
         {
             public Guid ActivityID { get; set; }
 
-            public LogObject ScopedObject { get; set; }
+            public Guid RelatedActivityID { get; set; }
 
-            public LogActivityItem Parent { get; set; }
+            public LogObject ScopedObject { get; set; }
         }
     }
 }
