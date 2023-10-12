@@ -53,9 +53,13 @@ namespace Microsoft.Diagnostics.Monitoring.EventPipe
                 LogActivityItem item = new()
                 {
                     ActivityID = traceEvent.ActivityID,
-                    RelatedActivityID = traceEvent.RelatedActivityID,
                     ScopedObject = new LogObject(JsonDocument.Parse(argsJson).RootElement),
                 };
+
+                if (logActivities.TryGetValue(traceEvent.RelatedActivityID, out LogActivityItem parentItem))
+                {
+                    item.Parent = parentItem;
+                }
 
                 logActivities[traceEvent.ActivityID] = item;
             });
@@ -95,11 +99,13 @@ namespace Microsoft.Diagnostics.Monitoring.EventPipe
                 ILogger logger = _factory.CreateLogger(categoryName);
                 List<IDisposable> scopes = new();
 
-                Guid scopeActivityId = traceEvent.ActivityID;
-                while (logActivities.TryGetValue(scopeActivityId, out LogActivityItem logActivityItem))
+                if (logActivities.TryGetValue(traceEvent.ActivityID, out LogActivityItem logActivityItem))
                 {
-                    scopes.Add(logger.BeginScope(logActivityItem.ScopedObject));
-                    scopeActivityId = logActivityItem.RelatedActivityID;
+                    while (logActivityItem != null)
+                    {
+                        scopes.Add(logger.BeginScope(logActivityItem.ScopedObject));
+                        logActivityItem = logActivityItem.Parent;
+                    }
                 }
 
                 try
@@ -175,7 +181,7 @@ namespace Microsoft.Diagnostics.Monitoring.EventPipe
         {
             public Guid ActivityID { get; set; }
 
-            public Guid RelatedActivityID { get; set; }
+            public LogActivityItem Parent { get; set; }
 
             public LogObject ScopedObject { get; set; }
         }
