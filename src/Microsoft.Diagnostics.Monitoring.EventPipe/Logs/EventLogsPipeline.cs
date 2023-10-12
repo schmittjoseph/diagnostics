@@ -65,9 +65,6 @@ namespace Microsoft.Diagnostics.Monitoring.EventPipe
             });
 
             eventSource.Dynamic.AddCallbackForProviderEvent(LoggingSourceConfiguration.MicrosoftExtensionsLoggingProviderName, "ActivityJson/Stop", (traceEvent) => {
-                int factoryId = (int)traceEvent.PayloadByName("FactoryID");
-                string categoryName = (string)traceEvent.PayloadByName("LoggerName");
-
                 _ = logActivities.Remove(traceEvent.ActivityID);
             });
 
