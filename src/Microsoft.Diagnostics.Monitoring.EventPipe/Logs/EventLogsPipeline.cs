@@ -42,7 +42,7 @@ namespace Microsoft.Diagnostics.Monitoring.EventPipe
         {
             string lastFormattedMessage = string.Empty;
 
-            Dictionary<Guid, LogActivityItem> activityIdToScopeData = new();
+            Dictionary<Guid, LogActivityItem> logActivities = new();
 
             eventSource.Dynamic.AddCallbackForProviderEvent(LoggingSourceConfiguration.MicrosoftExtensionsLoggingProviderName, "ActivityJson/Start", (traceEvent) => {
                 int factoryId = (int)traceEvent.PayloadByName("FactoryID");
@@ -57,14 +57,14 @@ namespace Microsoft.Diagnostics.Monitoring.EventPipe
                     ScopedObject = new LogObject(JsonDocument.Parse(argsJson).RootElement),
                 };
 
-                activityIdToScopeData[traceEvent.ActivityID] = item;
+                logActivities[traceEvent.ActivityID] = item;
             });
 
             eventSource.Dynamic.AddCallbackForProviderEvent(LoggingSourceConfiguration.MicrosoftExtensionsLoggingProviderName, "ActivityJson/Stop", (traceEvent) => {
                 int factoryId = (int)traceEvent.PayloadByName("FactoryID");
                 string categoryName = (string)traceEvent.PayloadByName("LoggerName");
 
-                activityIdToScopeData[traceEvent.ActivityID] = null;
+                _ = logActivities.Remove(traceEvent.ActivityID);
             });
 
             eventSource.Dynamic.AddCallbackForProviderEvent(LoggingSourceConfiguration.MicrosoftExtensionsLoggingProviderName, "MessageJson", (traceEvent) => {
@@ -96,7 +96,7 @@ namespace Microsoft.Diagnostics.Monitoring.EventPipe
                 List<IDisposable> scopes = new();
 
                 Guid scopeActivityId = traceEvent.ActivityID;
-                while (activityIdToScopeData.TryGetValue(scopeActivityId, out LogActivityItem logActivityItem))
+                while (logActivities.TryGetValue(scopeActivityId, out LogActivityItem logActivityItem))
                 {
                     scopes.Add(logger.BeginScope(logActivityItem.ScopedObject));
                     scopeActivityId = logActivityItem.RelatedActivityID;
