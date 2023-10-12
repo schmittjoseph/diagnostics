@@ -182,9 +182,9 @@ namespace Microsoft.Diagnostics.Monitoring.EventPipe
         {
             public Guid ActivityID { get; set; }
 
-            public LogActivityItem Parent { get; set; }
-
             public LogObject ScopedObject { get; set; }
+
+            public LogActivityItem Parent { get; set; }
         }
     }
 }
