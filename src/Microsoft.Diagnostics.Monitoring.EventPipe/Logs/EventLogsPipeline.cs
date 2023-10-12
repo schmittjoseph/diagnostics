@@ -104,6 +104,7 @@ namespace Microsoft.Diagnostics.Monitoring.EventPipe
                     while (logActivityItem != null)
                     {
                         scopes.Add(logger.BeginScope(logActivityItem.ScopedObject));
+
                         logActivityItem = logActivityItem.Parent;
                     }
                 }
