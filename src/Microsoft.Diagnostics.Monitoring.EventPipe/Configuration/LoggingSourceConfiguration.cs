@@ -46,7 +46,7 @@ namespace Microsoft.Diagnostics.Monitoring.EventPipe
                     TplEventSource,
                     EventLevel.Informational,
                     (long)TplEtwProviderTraceEventParser.Keywords.TasksFlowActivityIds
-                )
+                ),
             };
         }
 
